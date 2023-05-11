@@ -32,4 +32,4 @@ def loss(model, params, batch, weight_decay=1e-4):
     weight_l2 = dot_product(params, params)
     weight_penalty = weight_decay * 0.5 * weight_l2
     loss = loss + weight_penalty
-    return loss
+    return loss, logits

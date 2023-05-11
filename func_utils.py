@@ -4,6 +4,8 @@ import jax
 import jax.numpy as jnp
 from jax import grad
 
+from flax.training import common_utils
+
 # @title hvp and dot product
 
 def hvp(loss, params, batch, v):
@@ -48,5 +50,8 @@ def dot_product(v1, v2):
     
     return result
 
-def fisher_kernel():
-    return
+def fisher_kernel_func(logits, labels):
+    one_hot_labels = common_utils.onehot(labels, num_classes=10)
+    grad_z = one_hot_labels - jax.nn.softmax(logits)
+
+    return jnp.outer(grad_z, grad_z)

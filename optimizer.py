@@ -192,7 +192,7 @@ def get_optim(loss, model, params, batch, logits, grads, adams, damps, state, la
 
     # Use lax.cond to handle control flow with tracer values for condition_number
     optim = lax.cond(
-        (condition_number > 1e10) | jax.numpy.isnan(condition_number),
+        (condition_number > 1e9) | jax.numpy.isnan(condition_number),
         ill_conditioned_case,
         well_conditioned_case,
         None  # This argument is not used by either branch, so we pass None

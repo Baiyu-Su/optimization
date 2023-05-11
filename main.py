@@ -59,7 +59,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     weight_decay = 1e-4
 
     # Create a function to compute gradients
-    fixed_loss = Partial(loss, model)
+    fixed_loss, logits = Partial(loss, model)
     loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0)
 
     # Initialize optimizer state
@@ -81,7 +81,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
         step_start_time = time.time()
 
         loss_value, gradients = loss_and_grads(params, batch)
-        params, state = optimize_AdamK(fixed_loss, params, batch, gradients, state, lambd, weight_decay)
+        params, state = optimize_AdamK(fixed_loss, model, params, batch, logits, gradients, state, lambd, weight_decay)
 
         if j % T1 == 0:
             next_loss = fixed_loss(params, batch)
