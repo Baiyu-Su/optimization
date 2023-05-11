@@ -3,9 +3,9 @@
 import jax
 import jax.numpy as jnp
 from jax.experimental.host_callback import call
-from jax import lax
+from jax import lax, vmap
 
-from func_utils import hvp, dot_product
+from func_utils import hvp, dot_product, fisher_kernel_func
 
 def custom_jit(fun):
     return jax.jit(fun, static_argnums=(0,))
@@ -86,25 +86,76 @@ def get_adam(loss, params, grads, state, batch, rho=0.05):
 
     return new_adams
 
-@custom_jit
-def get_optim(loss, params, batch, grads, adams, damps, state, lambd, weight_decay):
+@jax.jit
+def get_fisher_kernel(logits, correct_labels):
+    vectorized_fisher_func = vmap(fisher_kernel_func, in_axes=(0, 0))
+    fisher_kernels = vectorized_fisher_func(logits, correct_labels)
+    average_fisher_kernel = jnp.mean(fisher_kernels, axis=0)
 
-    # Compute FIM vector product with adam vector \Delta and damping vector \delta
-    hvp_adam = hvp(loss, params, batch, adams)
-    hvp_damp = hvp(loss, params, batch, damps)
+    return average_fisher_kernel
+
+@custom_jit
+def get_optim(loss, model, params, batch, logits, grads, adams, damps, state, lambd, weight_decay):
+
+    fisher_kernel = get_fisher_kernel(logits, batch[1])
+
+    # Define a function to compute the logits for a single data point.
+    @jax.jit
+    def single_data_logits(params, input_data):
+        return model.apply(params, input_data)
+
+    # Define a function to compute the JVP for a single data point.
+    def single_data_jvp(params, input_data, custom_vector):
+        primals_out, tangents_out = jax.jvp(single_data_logits, (params, input_data), (custom_vector, jnp.zeros_like(input_data)))
+        return tangents_out
+
+    # Vectorize the JVP function to apply it to each data point in the batch.
+    vectorized_single_data_jvp = vmap(single_data_jvp, in_axes=(None, 0, None), out_axes=0)
+
+    # Compute the JVP for each data point in the batch.
+    jvp_adam = vectorized_single_data_jvp(params, batch[0], adams)
+    jvp_damp = vectorized_single_data_jvp(params, batch[0], damps)
+
+    # Define a function to compute the product for a single data point.
+    def single_data_product(jvp1, jvp2, matrix):
+        # Reshape JVPs into a single column vector
+        jvp1_flat = jax.tree_util.tree_flatten(jvp1)[0][0].reshape(-1, 1)
+        jvp2_flat = jax.tree_util.tree_flatten(jvp2)[0][0].reshape(-1, 1)
+        
+        # Compute the product
+        product = jnp.dot(jvp1_flat.T, jnp.dot(matrix, jvp2_flat))
+        
+        # Extract the scalar value
+        return product[0, 0]
+        
+    # Vectorize the function to apply it to each data point in the batch.
+    vectorized_single_data_product = vmap(single_data_product, in_axes=(0, 0, None), out_axes=0)
+
+    adam_F_adam = jnp.mean(vectorized_single_data_product(jvp_adam, jvp_adam, fisher_kernel))
+    adam_F_damp = jnp.mean(vectorized_single_data_product(jvp_adam, jvp_damp, fisher_kernel))
+    damp_F_damp = jnp.mean(vectorized_single_data_product(jvp_damp, jvp_damp, fisher_kernel))
+
+    mat11 = adam_F_adam + (lambd + weight_decay) * dot_product(adams, adams)
+    mat12 = adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)
+    mat21 = mat12
+    mat22 = damp_F_damp + (lambd + weight_decay) * dot_product(damps, damps)
+
+    # # Compute FIM vector product with adam vector \Delta and damping vector \delta
+    # hvp_adam = hvp(loss, params, batch, adams)
+    # hvp_damp = hvp(loss, params, batch, damps)
 
     # call(lambda x: print(x), optim)
 
-    # Construct 2 by 2 matrix for the optimal vector
-    mat11 = dot_product(adams, hvp_adam) + (lambd + weight_decay) * dot_product(adams, adams)
-    mat12 = dot_product(adams, hvp_damp) + (lambd + weight_decay) * dot_product(adams, damps)
-    mat21 = mat12
-    mat22 = dot_product(damps, hvp_damp) + (lambd + weight_decay) * dot_product(damps, damps)
+    # # Construct 2 by 2 matrix for the optimal vector
+    # mat11 = dot_product(adams, hvp_adam) + (lambd + weight_decay) * dot_product(adams, adams)
+    # mat12 = dot_product(adams, hvp_damp) + (lambd + weight_decay) * dot_product(adams, damps)
+    # mat21 = mat12
+    # mat22 = dot_product(damps, hvp_damp) + (lambd + weight_decay) * dot_product(damps, damps)
 
     mat = jax.numpy.array([[mat11, mat12], [mat21, mat22]])
 
     # Add small positive value to the diagonal for better numerical stability
-    alpha = 1e-4
+    alpha = 1e-5
     mat += jax.numpy.eye(2) * alpha
 
     condition_number = jax.numpy.linalg.cond(mat)
@@ -151,7 +202,7 @@ def get_optim(loss, params, batch, grads, adams, damps, state, lambd, weight_dec
     return optim
 
 @custom_jit
-def damp_update(loss, params, batch, grads, state, lambd, weight_decay):
+def damp_update(loss, model, params, batch, logits, grads, state, lambd, weight_decay):
 
     initial_learning_rate = state['learning_rate']
     final_learning_rate = 1.0
@@ -172,7 +223,7 @@ def damp_update(loss, params, batch, grads, state, lambd, weight_decay):
 
     damps = state['damps']
     # Compute optimum \alpha and \mu for damp update
-    optim = get_optim(loss, params, batch, grads, adams, damps, state, lambd, weight_decay)
+    optim = get_optim(loss, model, params, batch, logits, grads, adams, damps, state, lambd, weight_decay)
 
     # Jitted function using optim vector to compute damp update
     @jax.jit
@@ -229,8 +280,8 @@ def adam_update(params, grads, state):
     return params, state  
 
 @custom_jit
-def optimize_AdamK(loss, params, batch, grads, state, lambd, weight_decay):
-    return damp_update(loss, params, batch, grads, state, lambd, weight_decay)
+def optimize_AdamK(loss, model, params, batch, logits, grads, state, lambd, weight_decay):
+    return damp_update(loss, model, params, batch, logits, grads, state, lambd, weight_decay)
 
 @jax.jit
 def optimize_Adam(params, grads, state):
