@@ -95,8 +95,8 @@ def get_fisher_kernel(logits, correct_labels):
     return average_fisher_kernel
 
 @custom_jit
-def get_optim(loss, model, params, batch, logits, grads, adams, damps, state, lambd, weight_decay):
-
+def get_optim(loss, model, params, batch, grads, adams, damps, state, lambd, weight_decay):
+    logits = model.apply(params, batch[0])
     fisher_kernel = get_fisher_kernel(logits, batch[1])
 
     # Define a function to compute the logits for a single data point.
@@ -202,7 +202,7 @@ def get_optim(loss, model, params, batch, logits, grads, adams, damps, state, la
     return optim
 
 @custom_jit
-def damp_update(loss, model, params, batch, logits, grads, state, lambd, weight_decay):
+def damp_update(loss, model, params, batch, grads, state, lambd, weight_decay):
 
     initial_learning_rate = state['learning_rate']
     final_learning_rate = 1.0
@@ -223,7 +223,7 @@ def damp_update(loss, model, params, batch, logits, grads, state, lambd, weight_
 
     damps = state['damps']
     # Compute optimum \alpha and \mu for damp update
-    optim = get_optim(loss, model, params, batch, logits, grads, adams, damps, state, lambd, weight_decay)
+    optim = get_optim(loss, model, params, batch, grads, adams, damps, state, lambd, weight_decay)
 
     # Jitted function using optim vector to compute damp update
     @jax.jit
@@ -280,8 +280,8 @@ def adam_update(params, grads, state):
     return params, state  
 
 @custom_jit
-def optimize_AdamK(loss, model, params, batch, logits, grads, state, lambd, weight_decay):
-    return damp_update(loss, model, params, batch, logits, grads, state, lambd, weight_decay)
+def optimize_AdamK(loss, model, params, batch, grads, state, lambd, weight_decay):
+    return damp_update(loss, model, params, batch, grads, state, lambd, weight_decay)
 
 @jax.jit
 def optimize_Adam(params, grads, state):
