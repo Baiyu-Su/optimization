@@ -15,7 +15,7 @@ def hvp(loss, params, batch, v):
 
     Args:
       loss: function computing the loss with signature
-        loss(model, params, batch).
+        loss(params, batch).
       model: the model object.
       params: pytree for the parameters of the model.
       batch:  A batch of data. Any format is fine as long as it is a valid input
@@ -50,8 +50,8 @@ def dot_product(v1, v2):
     
     return result
 
-def fisher_kernel_func(logits, labels):
-    one_hot_labels = common_utils.onehot(labels, num_classes=10)
-    grad_z = one_hot_labels - jax.nn.softmax(logits)
+def fisher_kernel_func(logits):
+    diagonal = jnp.diag(logits)
+    rankone = jnp.outer(logits, logits)
 
-    return jnp.outer(grad_z, grad_z)
+    return diagonal - rankone
