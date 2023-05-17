@@ -127,9 +127,6 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     mat += jax.numpy.eye(2) * alpha
 
     condition_number = jax.numpy.linalg.cond(mat)
-    # call(lambda x: print(x), condition_number)
-    # call(lambda x: print(f'ratio1:{x:.5f}'), ratio1)
-    # call(lambda x: print(f'ratio2:{x:.5f}'), ratio2)
 
     # Function to handle the ill-conditioned or NaN condition_number case
     def ill_conditioned_case(_):
