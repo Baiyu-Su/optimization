@@ -50,7 +50,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.5)
 
     # Training loop
-    num_steps = 50
+    num_steps = 500
     train_loss_list = []
     test_loss_list = []
 
@@ -106,7 +106,7 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1)
 
     # Training loop
-    num_steps = 50
+    num_steps = 500
     train_loss_list = []
     test_loss_list = []
 
