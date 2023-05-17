@@ -15,6 +15,7 @@ from jax.tree_util import Partial
 import jax
 import jax.numpy as jnp
 from jax import random, grad
+import numpy as np
 
 from loss_utils import loss
 from func_utils import dot_product
@@ -49,22 +50,27 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.5)
 
     # Training loop
-    num_steps = 400
+    num_steps = 50
     train_loss_list = []
-    valid_loss_list = []
-    valid_loss_time = []
+    test_loss_list = []
 
     start_time = time.time()
     elapsed_time = 0
     for j in tqdm(range(num_steps)):
         batch = next(train_ds_numpy)
+        test_batch = next(test_ds_numpy)
 
         (loss_value, logits), gradients = loss_and_grads(params, batch)
         params, state = optimize_AdamK(model_fn, params, batch, gradients, state, lambd, weight_decay)
+
         accuracy = jnp.mean(jnp.argmax(logits, -1) == batch[1])
+        test_loss_value, test_logits = fixed_loss(params, test_batch)
+        test_accuracy = jnp.mean(jnp.argmax(test_logits, -1) == test_batch[1])
+        train_loss_list.append(loss_value)
+        test_loss_list.append(test_loss_value)
 
         if j % T1 == 0:
-            next_loss = fixed_loss(params, batch)
+            next_loss, _ = fixed_loss(params, batch)
             rho = -(next_loss - loss_value) / (0.5 * dot_product(gradients, state['damps']))
             print(rho)
             if rho > 3/4:
@@ -76,9 +82,11 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
 
         elapsed_time = time.time() - start_time
 
-        print(f"This is step {j}, train loss: {loss_value:.3f}, train accuracy: {accuracy:.3f}, using lambda {lambd:.6f}, elapsed time: {elapsed_time:.2f} seconds.")
+        print(f"This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, \
+              train accuracy: {accuracy:.3f}, test accuracy: {test_accuracy:.3f}, using lambda {lambd:.6f}, \
+              elapsed time: {elapsed_time:.2f} seconds.")
 
-    return params, train_loss_list, valid_loss_list, valid_loss_time
+    return params, train_loss_list, test_loss_list
 
 
 def train_Adam(initial_params, train_ds, test_ds, seed=None):
@@ -98,26 +106,31 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1)
 
     # Training loop
-    num_steps = 600
+    num_steps = 50
     train_loss_list = []
-    valid_loss_list = []
-    valid_loss_time = []
+    test_loss_list = []
 
     start_time = time.time()
     elapsed_time = 0
 
     for j in tqdm(range(num_steps)):
         batch = next(train_ds_numpy)
+        test_batch = next(test_ds_numpy)
 
         (loss_value, logits), gradients = loss_and_grads(params, batch)
         params, state = optimize_Adam(params, gradients, state)
-        train_loss_list.append(loss_value)
+
         accuracy = jnp.mean(jnp.argmax(logits, -1) == batch[1])
+        test_loss_value, test_logits = fixed_loss(params, test_batch)
+        test_accuracy = jnp.mean(jnp.argmax(test_logits, -1) == test_batch[1])
+        train_loss_list.append(loss_value)
+        test_loss_list.append(test_loss_value)
 
         elapsed_time = time.time() - start_time
-        print(f"This is step {j}, train loss: {loss_value:.3f}, train accuracy: {accuracy:.3f}, elapsed time: {elapsed_time:.2f} seconds.")
-
-    return params, train_loss_list, valid_loss_list, valid_loss_time
+        print(f"This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, \
+              train accuracy: {accuracy:.3f}, test accuracy: {test_accuracy:.3f}, elapsed time: {elapsed_time:.2f} seconds.")
+        
+    return params, train_loss_list, test_loss_list
 
 if __name__ == '__main__':
     model = get_model(num_classes=10)
@@ -140,7 +153,7 @@ if __name__ == '__main__':
                                        download=False, transform=transform)
     
     seed = 42
-    trained_params1, train_loss1, valid_loss1, valid_loss_time1 = train_AdamK(params, trainset, testset, seed=seed)
+    trained_params1, train_loss1, test_loss1 = train_AdamK(params, trainset, testset, seed=seed)
 
     # Load the CIFAR-10 dataset
     trainset2 = torchvision.datasets.CIFAR10(root='./data', train=True,
@@ -148,4 +161,12 @@ if __name__ == '__main__':
     testset2 = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=False, transform=transform)
 
-    trained_params2, train_loss2, valid_loss2, valid_loss_time2 = train_Adam(params2, trainset2, testset2, seed=seed)
+    trained_params2, train_loss2, test_loss2 = train_Adam(params2, trainset2, testset2, seed=seed)
+
+    train_arr1 = np.array(train_loss1)
+    train_arr2 = np.array(train_loss2)
+    test_arr1 = np.array(test_loss1)
+    test_arr2 = np.array(test_loss2)
+
+    np.savez('loss.npz', train_arr1, train_arr2, test_arr1, test_arr2)
+
