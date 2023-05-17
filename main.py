@@ -54,8 +54,8 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     
     # Training constant for AdamK
     T1 = 5
-    omega1 = (9 / 10) ** T1
-    lambd = 10
+    omega1 = (8 / 10) ** T1
+    lambd = 3
     weight_decay = 1e-4
     
     def model_fn(params, inputs):
@@ -66,7 +66,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0)
 
     # Initialize optimizer state
-    state = adam_init(params, learning_rate=1.0)
+    state = adam_init(params, learning_rate=1.5)
 
     # Training loop
     num_steps = 150

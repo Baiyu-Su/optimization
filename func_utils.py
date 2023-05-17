@@ -51,7 +51,9 @@ def dot_product(v1, v2):
     return result
 
 def fisher_kernel_func(logits):
-    diagonal = jnp.diag(logits)
-    rankone = jnp.outer(logits, logits)
+    prob = jax.nn.softmax(logits)
+    diagonal = jnp.diag(prob)
+    rankone = jnp.outer(prob, prob)
 
     return diagonal - rankone
+
