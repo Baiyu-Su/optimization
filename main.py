@@ -34,7 +34,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     
     # Training constant for AdamK
     T1 = 5
-    omega1 = (8 / 10) ** T1
+    omega1 = (9 / 10) ** T1
     lambd = 3
     weight_decay = 1e-4
     
@@ -49,7 +49,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.5)
 
     # Training loop
-    num_steps = 150
+    num_steps = 400
     train_loss_list = []
     valid_loss_list = []
     valid_loss_time = []
@@ -92,13 +92,13 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
 
     # Create a function to compute gradients
     fixed_loss = Partial(loss, model)
-    loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0)
+    loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0, has_aux=True)
 
     # Initialize optimizer state
     state = adam_init(params, learning_rate=1)
 
     # Training loop
-    num_steps = 300
+    num_steps = 600
     train_loss_list = []
     valid_loss_list = []
     valid_loss_time = []
@@ -109,12 +109,13 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     for j in tqdm(range(num_steps)):
         batch = next(train_ds_numpy)
 
-        loss_value, gradients = loss_and_grads(params, batch)
+        (loss_value, logits), gradients = loss_and_grads(params, batch)
         params, state = optimize_Adam(params, gradients, state)
         train_loss_list.append(loss_value)
+        accuracy = jnp.mean(jnp.argmax(logits, -1) == batch[1])
 
         elapsed_time = time.time() - start_time
-        print(f"This is step {j}, train loss: {loss_value:.3f}, elapsed time: {elapsed_time:.2f} seconds.")
+        print(f"This is step {j}, train loss: {loss_value:.3f}, train accuracy: {accuracy:.3f}, elapsed time: {elapsed_time:.2f} seconds.")
 
     return params, train_loss_list, valid_loss_list, valid_loss_time
 
