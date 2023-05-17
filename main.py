@@ -35,8 +35,8 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     
     # Training constant for AdamK
     T1 = 5
-    omega1 = (9 / 10) ** T1
-    lambd = 3
+    omega1 = (8 / 10) ** T1
+    lambd = 5
     weight_decay = 1e-4
     
     def model_fn(params, inputs):
@@ -50,7 +50,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.5)
 
     # Training loop
-    num_steps = 500
+    num_steps = 300
     train_loss_list = []
     test_loss_list = []
 
@@ -77,14 +77,13 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
                 lambd = omega1 * lambd
             if rho < 1/4:
                 lambd = lambd / omega1
-
-        train_loss_list.append(loss_value)
+            if lambd < 1e-4:
+                lambd = 1e-4
 
         elapsed_time = time.time() - start_time
 
-        print(f"This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, \
-              train accuracy: {accuracy:.3f}, test accuracy: {test_accuracy:.3f}, using lambda {lambd:.6f}, \
-              elapsed time: {elapsed_time:.2f} seconds.")
+        print(f'''This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, train accuracy: {accuracy:.3f}, 
+              test accuracy: {test_accuracy:.3f}, using lambda {lambd:.6f}, elapsed time: {elapsed_time:.2f} seconds.''')
 
     return params, train_loss_list, test_loss_list
 
@@ -106,7 +105,7 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1)
 
     # Training loop
-    num_steps = 500
+    num_steps = 300
     train_loss_list = []
     test_loss_list = []
 
@@ -127,8 +126,8 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
         test_loss_list.append(test_loss_value)
 
         elapsed_time = time.time() - start_time
-        print(f"This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, \
-              train accuracy: {accuracy:.3f}, test accuracy: {test_accuracy:.3f}, elapsed time: {elapsed_time:.2f} seconds.")
+        print(f'''This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, 
+        train accuracy: {accuracy:.3f}, test accuracy: {test_accuracy:.3f}, elapsed time: {elapsed_time:.2f} seconds.''')
         
     return params, train_loss_list, test_loss_list
 
