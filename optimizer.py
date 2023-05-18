@@ -164,7 +164,7 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     )
 
     # Apply constraints to optim
-    optim = jnp.stack([jnp.clip(optim[0], -0.2, 1.0), jnp.clip(optim[1], -0.1, 0.8)])
+    optim = jnp.stack([jnp.clip(optim[0], -0.15, 0.8), jnp.clip(optim[1], -0.1, 0.7)])
 
     call(lambda x: print(x), optim)
 
@@ -175,7 +175,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
 
     initial_learning_rate = state['learning_rate']
     final_learning_rate = 1.0
-    total_steps = 600  # Set this to the number of total steps you want to take
+    total_steps = 500  # Set this to the number of total steps you want to take
 
     # Calculate the current learning rate with linear decay
     current_learning_rate = initial_learning_rate + (final_learning_rate - initial_learning_rate) * (state['t'] / total_steps)
@@ -205,7 +205,8 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
     damps_norm = jnp.sqrt(sum(jnp.sum(jnp.square(damp)) for damp in jax.tree_leaves(damps)))
 
     # Set the norm constraint limit
-    norm_constraint = 1e+6
+    call(lambda x: print(x), damps_norm)
+    norm_constraint = 50
     
     @jax.jit
     def scale_damps(_):
@@ -227,7 +228,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
 @jax.jit
 def adam_update(params, grads, state):
     initial_learning_rate = state['learning_rate']
-    final_learning_rate = 1.0
+    final_learning_rate = 0.3
     total_steps = 500  # Set this to the number of total steps you want to take
 
     # Calculate the current learning rate with linear decay

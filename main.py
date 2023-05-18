@@ -36,8 +36,8 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     # Training constant for AdamK
     T1 = 5
     omega1 = (8 / 10) ** T1
-    lambd = 1
-    weight_decay = 1e-4
+    lambd = 0.1
+    weight_decay = 5e-4
     
     def model_fn(params, inputs):
         return model.apply(params, inputs)
@@ -50,7 +50,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.6)
 
     # Training loop
-    num_steps = 1500
+    num_steps = 1000
     train_loss_list = []
     test_loss_list = []
 
@@ -102,10 +102,10 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0, has_aux=True)
 
     # Initialize optimizer state
-    state = adam_init(params, learning_rate=1)
+    state = adam_init(params, learning_rate=0.3)
 
     # Training loop
-    num_steps = 1500
+    num_steps = 1000
     train_loss_list = []
     test_loss_list = []
 
