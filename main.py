@@ -50,7 +50,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.6)
 
     # Training loop
-    num_steps = 600
+    num_steps = 1500
     train_loss_list = []
     test_loss_list = []
 
@@ -77,8 +77,8 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
                 lambd = omega1 * lambd
             if rho < 1/4:
                 lambd = lambd / omega1
-            if lambd < 1e-3:
-                lambd = 1e-3
+            if lambd < 1e-4:
+                lambd = 1e-4
 
         elapsed_time = time.time() - start_time
 
@@ -105,7 +105,7 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1)
 
     # Training loop
-    num_steps = 600
+    num_steps = 1500
     train_loss_list = []
     test_loss_list = []
 

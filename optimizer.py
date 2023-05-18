@@ -164,7 +164,7 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     )
 
     # Apply constraints to optim
-    optim = jnp.stack([jnp.clip(optim[0], -0.3, 1.2), jnp.clip(optim[1], -0.1, 0.7)])
+    optim = jnp.stack([jnp.clip(optim[0], -0.2, 1.0), jnp.clip(optim[1], -0.1, 0.8)])
 
     call(lambda x: print(x), optim)
 
@@ -175,7 +175,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
 
     initial_learning_rate = state['learning_rate']
     final_learning_rate = 1.0
-    total_steps = 300  # Set this to the number of total steps you want to take
+    total_steps = 600  # Set this to the number of total steps you want to take
 
     # Calculate the current learning rate with linear decay
     current_learning_rate = initial_learning_rate + (final_learning_rate - initial_learning_rate) * (state['t'] / total_steps)
