@@ -10,7 +10,7 @@ from func_utils import hvp, dot_product, fisher_kernel_func
 def custom_jit(fun):
     return jax.jit(fun, static_argnums=(0,))
 
-def adam_init(params, learning_rate=1, beta1=0.9, beta2=0.99, eps=1e-8):
+def adam_init(params, learning_rate=1, beta1=0.9, beta2=0.99, eps=1e-5):
 
     # Initializing state dict, lambd and weight_decay should be incorporated later
     state = {}
@@ -164,7 +164,7 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     )
 
     # Apply constraints to optim
-    optim = jnp.stack([jnp.clip(optim[0], -0.15, 0.8), jnp.clip(optim[1], -0.1, 0.7)])
+    optim = jnp.stack([jnp.clip(optim[0], -0.2, 0.9), jnp.clip(optim[1], -0.15, 0.8)])
 
     call(lambda x: print(x), optim)
 
@@ -175,7 +175,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
 
     initial_learning_rate = state['learning_rate']
     final_learning_rate = 1.0
-    total_steps = 500  # Set this to the number of total steps you want to take
+    total_steps = 1500  # Set this to the number of total steps you want to take
 
     # Calculate the current learning rate with linear decay
     current_learning_rate = initial_learning_rate + (final_learning_rate - initial_learning_rate) * (state['t'] / total_steps)
@@ -206,7 +206,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
 
     # Set the norm constraint limit
     call(lambda x: print(x), damps_norm)
-    norm_constraint = 50
+    norm_constraint = 10
     
     @jax.jit
     def scale_damps(_):
@@ -228,8 +228,8 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
 @jax.jit
 def adam_update(params, grads, state):
     initial_learning_rate = state['learning_rate']
-    final_learning_rate = 0.3
-    total_steps = 500  # Set this to the number of total steps you want to take
+    final_learning_rate = 0.5
+    total_steps = 1500  # Set this to the number of total steps you want to take
 
     # Calculate the current learning rate with linear decay
     current_learning_rate = initial_learning_rate + (final_learning_rate - initial_learning_rate) * (state['t'] / total_steps)

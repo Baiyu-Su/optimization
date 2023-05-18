@@ -50,7 +50,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1.6)
 
     # Training loop
-    num_steps = 1000
+    num_steps = 1500
     train_loss_list = []
     test_loss_list = []
 
@@ -65,6 +65,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
 
         accuracy = jnp.mean(jnp.argmax(logits, -1) == batch[1])
         test_loss_value, test_logits = fixed_loss(params, test_batch)
+        print(test_logits)
         test_accuracy = jnp.mean(jnp.argmax(test_logits, -1) == test_batch[1])
         train_loss_list.append(loss_value)
         test_loss_list.append(test_loss_value)
@@ -83,7 +84,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
         elapsed_time = time.time() - start_time
 
         print(f'''This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, train accuracy: {accuracy:.3f}, 
-              test accuracy: {test_accuracy:.3f}, using lambda {lambd:.3f}, elapsed time: {elapsed_time:.2f} seconds.''')
+              test accuracy: {test_accuracy:.3f}, using lambda {lambd:.4f}, elapsed time: {elapsed_time:.2f} seconds.''')
 
     return params, train_loss_list, test_loss_list
 
@@ -102,10 +103,10 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0, has_aux=True)
 
     # Initialize optimizer state
-    state = adam_init(params, learning_rate=0.3)
+    state = adam_init(params, learning_rate=0.5)
 
     # Training loop
-    num_steps = 1000
+    num_steps = 1500
     train_loss_list = []
     test_loss_list = []
 
