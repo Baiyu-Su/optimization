@@ -36,7 +36,7 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     # Training constant for AdamK
     T1 = 5
     omega1 = (8 / 10) ** T1
-    lambd = 5
+    lambd = 1
     weight_decay = 1e-4
     
     def model_fn(params, inputs):
@@ -47,10 +47,10 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
     loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0, has_aux=True)
 
     # Initialize optimizer state
-    state = adam_init(params, learning_rate=1.5)
+    state = adam_init(params, learning_rate=1.6)
 
     # Training loop
-    num_steps = 300
+    num_steps = 600
     train_loss_list = []
     test_loss_list = []
 
@@ -77,13 +77,13 @@ def train_AdamK(initial_params, train_ds, test_ds, seed=None):
                 lambd = omega1 * lambd
             if rho < 1/4:
                 lambd = lambd / omega1
-            if lambd < 1e-4:
-                lambd = 1e-4
+            if lambd < 1e-3:
+                lambd = 1e-3
 
         elapsed_time = time.time() - start_time
 
         print(f'''This is step {j}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, train accuracy: {accuracy:.3f}, 
-              test accuracy: {test_accuracy:.3f}, using lambda {lambd:.6f}, elapsed time: {elapsed_time:.2f} seconds.''')
+              test accuracy: {test_accuracy:.3f}, using lambda {lambd:.3f}, elapsed time: {elapsed_time:.2f} seconds.''')
 
     return params, train_loss_list, test_loss_list
 
@@ -105,7 +105,7 @@ def train_Adam(initial_params, train_ds, test_ds, seed=None):
     state = adam_init(params, learning_rate=1)
 
     # Training loop
-    num_steps = 300
+    num_steps = 600
     train_loss_list = []
     test_loss_list = []
 
