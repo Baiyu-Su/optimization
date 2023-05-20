@@ -16,6 +16,7 @@ import jax
 import jax.numpy as jnp
 from jax import random, grad
 import numpy as np
+from flax.core import FrozenDict
 
 from loss_utils import loss
 from func_utils import dot_product
@@ -79,10 +80,10 @@ if __name__ == '__main__':
 
     key1, key2 = random.split(random.PRNGKey(42))
     params1 = model.init(key2, jnp.ones((batch_size, 32, 32, 3)))
-    params2 = jnp.copy(params1)
-    params3 = jnp.copy(params1)
-    params4 = jnp.copy(params1)
-    params5 = jnp.copy(params1)
+    params2 = FrozenDict(params1)
+    params3 = FrozenDict(params1)
+    params4 = FrozenDict(params1)
+    params5 = FrozenDict(params1)
 
     trainset1 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset1 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
