@@ -1,5 +1,5 @@
-from jax_resnet import ResNet18
+import flaxmodels as fm
 
-def get_model(num_classes):
-    return ResNet18(n_classes=num_classes)
+def get_model():
+    return fm.ResNet34(output='logits', pretrained=None, num_classes=10)
     

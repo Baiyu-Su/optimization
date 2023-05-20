@@ -5,14 +5,14 @@ import jax.numpy as jnp
 from jax.experimental.host_callback import call
 from jax import lax, vmap
 
-from func_utils import hvp, dot_product, fisher_kernel_func
+from func_utils import dot_product, fisher_kernel_func
 
 def custom_jit(fun):
     return jax.jit(fun, static_argnums=(0,))
 
-def adam_init(params, learning_rate=1, beta1=0.9, beta2=0.99, eps=1e-5):
+def adam_init(params, learning_rate=1, beta1=0.9, beta2=0.999, eps=1e-7):
+    # Initializing state dict
 
-    # Initializing state dict, lambd and weight_decay should be incorporated later
     state = {}
     state['learning_rate'] = learning_rate
     state['beta1'] = beta1
@@ -25,17 +25,17 @@ def adam_init(params, learning_rate=1, beta1=0.9, beta2=0.99, eps=1e-5):
     return state
 
 @jax.jit
-def get_adam_vanilla(params, grads, state):
+def get_adam(step, grads, state):
     
-    # Jitted function to update the first moment estimate (m) for each parameter
+    # Jitted function to update the first moment estimate (m) for each parameter with bias correction
     @jax.jit
     def update_m(m, grad):
-        return state['beta1'] * m + (1.0 - state['beta1']) * grad
+        return (state['beta1'] * m + (1.0 - state['beta1']) * grad) / (1 - state['beta1'] ** (step + 1))
 
-    # Jitted function to update the second moment estimate (v) for each parameter
+    # Jitted function to update the second moment estimate (v) for each parameter with bias correction
     @jax.jit
     def update_v(v, grad):
-        return state['beta2'] * v + (1.0 - state['beta2']) * jnp.square(grad)
+        return (state['beta2'] * v + (1.0 - state['beta2']) * jnp.square(grad)) / (1 - state['beta2'] ** (step + 1))
 
     @jax.jit
     def update_mv(m, v):
@@ -47,44 +47,6 @@ def get_adam_vanilla(params, grads, state):
     adams = jax.tree_map(update_mv, state['m'], state['v'])
 
     return adams
-
-@custom_jit
-def get_adam(loss, params, grads, state, batch, rho=0.05):
-    
-    # Jitted function to update the first moment estimate (m) for each parameter
-    @jax.jit
-    def update_m(m, grad):
-        return state['beta1'] * m + (1.0 - state['beta1']) * grad
-
-    # Jitted function to update the second moment estimate (v) for each parameter
-    @jax.jit
-    def update_v(v, grad):
-        return state['beta2'] * v + (1.0 - state['beta2']) * jnp.square(grad)
-
-    @jax.jit
-    def update_mv(m, v):
-        return m / (jnp.sqrt(v) + state['eps'])
-
-    grads_norm = jnp.sqrt(dot_product(grads, grads))
-
-    # Compute the perturbed parameters
-    @jax.jit
-    def perturb_params(param, grads):
-        return param + rho * grads / grads_norm
-
-    perturbed_params = jax.tree_map(perturb_params, params, grads)
-
-    # Compute gradients at the perturbed parameters
-    perturbed_grads = jax.grad(loss)(perturbed_params, batch)
-
-    # Update the Adam state using the perturbed gradients
-    state['m'] = jax.tree_map(update_m, state['m'], perturbed_grads)
-    state['v'] = jax.tree_map(update_v, state['v'], perturbed_grads)
-
-    # Compute the new Adam update vector using the perturbed gradients
-    new_adams = jax.tree_map(update_mv, state['m'], state['v'])
-
-    return new_adams
 
 @custom_jit
 def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay):
@@ -107,18 +69,6 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     mat12 = adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)
     mat21 = (adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)) / 100
     mat22 = damp_F_damp + (lambd + weight_decay) * dot_product(damps, damps)
-
-    # # Compute FIM vector product with adam vector \Delta and damping vector \delta
-    # hvp_adam = hvp(loss, params, batch, adams)
-    # hvp_damp = hvp(loss, params, batch, damps)
-
-    # call(lambda x: print(x), optim)
-
-    # # Construct 2 by 2 matrix for the optimal vector
-    # mat11 = dot_product(adams, hvp_adam) + (lambd + weight_decay) * dot_product(adams, adams)
-    # mat12 = dot_product(adams, hvp_damp) + (lambd + weight_decay) * dot_product(adams, damps)
-    # mat21 = mat12
-    # mat22 = dot_product(damps, hvp_damp) + (lambd + weight_decay) * dot_product(damps, damps)
 
     mat = jnp.array([[mat11, mat12], [mat21, mat22]])
 
@@ -164,9 +114,7 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     )
 
     # Apply constraints to optim
-    optim = jnp.stack([jnp.clip(optim[0], -0.2, 0.9), jnp.clip(optim[1], -0.15, 0.8)])
-
-    call(lambda x: print(x), optim)
+    optim = jnp.stack([jnp.clip(optim[0], -0.1, 0.7), jnp.clip(optim[1], -0.1, 0.7)])
 
     return optim
 
@@ -184,7 +132,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
     # Calculate the time-dependent learning rate
     lr_t = current_learning_rate * jnp.sqrt(1.0 - jnp.power(state['beta2'], state['t'])) / (1.0 - jnp.power(state['beta1'], state['t']))
 
-    adams = get_adam_vanilla(params, grads, state)
+    adams = get_adam(grads, state)
 
     @jax.jit
     def update_params(param, damps):
@@ -205,7 +153,6 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
     damps_norm = jnp.sqrt(sum(jnp.sum(jnp.square(damp)) for damp in jax.tree_leaves(damps)))
 
     # Set the norm constraint limit
-    call(lambda x: print(x), damps_norm)
     norm_constraint = 10
     
     @jax.jit
@@ -226,19 +173,11 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
     return params, state
 
 @jax.jit
-def adam_update(params, grads, state):
-    initial_learning_rate = state['learning_rate']
-    final_learning_rate = 0.5
-    total_steps = 1500  # Set this to the number of total steps you want to take
+def adam_update(params, step, grads, state):
+    # Compute adam vector and update parameters
 
-    # Calculate the current learning rate with linear decay
-    current_learning_rate = initial_learning_rate + (final_learning_rate - initial_learning_rate) * (state['t'] / total_steps)
-
-    state['t'] += 1
-    # Calculate the time-dependent learning rate
-    lr_t = current_learning_rate * jnp.sqrt(1.0 - jnp.power(state['beta2'], state['t'])) / (1.0 - jnp.power(state['beta1'], state['t']))
-
-    adams = get_adam_vanilla(params, grads, state)
+    lr_t = state['learning_rate']
+    adams = get_adam(step, grads, state)
 
     @jax.jit
     def update_params(param, damps):
@@ -254,6 +193,6 @@ def optimize_AdamK(model_fn, params, batch, grads, state, lambd, weight_decay):
     return damp_update(model_fn, params, batch, grads, state, lambd, weight_decay)
 
 @jax.jit
-def optimize_Adam(params, grads, state):
-    return adam_update(params, grads, state)
+def optimize_Adam(params, step, grads, state):
+    return adam_update(params, step, grads, state)
 
