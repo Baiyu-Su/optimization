@@ -42,9 +42,11 @@ def train_Adam(initial_params, train_ds, test_ds, batch_size, learning_rate, see
     state = adam_init(params, learning_rate=learning_rate)
 
     # Training loop
-    num_steps = 1000
+    num_steps = 3000
     train_loss_list = []
     test_loss_list = []
+    train_acc_list = []
+    test_acc_list = []
 
     start_time = time.time()
     elapsed_time = 0
@@ -52,7 +54,7 @@ def train_Adam(initial_params, train_ds, test_ds, batch_size, learning_rate, see
     for step in tqdm(range(num_steps)):
         batch = next(train_ds_numpy)
         test_batch = next(test_ds_numpy)
-
+    
         (loss_value, logits), gradients = loss_and_grads(params, batch)
         params, state = optimize_Adam(params, step, gradients, state)
 
@@ -61,12 +63,14 @@ def train_Adam(initial_params, train_ds, test_ds, batch_size, learning_rate, see
         test_accuracy = jnp.mean(jnp.argmax(test_logits, -1) == test_batch[1])
         train_loss_list.append(loss_value)
         test_loss_list.append(test_loss_value)
-
+        train_acc_list.append(accuracy)
+        test_acc_list.append(test_accuracy)
+        
         elapsed_time = time.time() - start_time
         print(f'''Step {step}, train loss {loss_value:.3f}, test loss {test_loss_value:.3f}, 
         train accuracy {accuracy:.3f}, test accuracy {test_accuracy:.3f}, elapsed time {elapsed_time:.2f}.''')
         
-    return params, train_loss_list, test_loss_list
+    return params, train_loss_list, test_loss_list, train_acc_list, test_acc_list
 
 if __name__ == '__main__':
     model = get_model()
@@ -87,23 +91,23 @@ if __name__ == '__main__':
 
     trainset1 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset1 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params1, train_loss1, test_loss1 = train_Adam(params1, trainset1, testset1, batch_size, 0.1, seed=42)
+    trained_params1, train_loss1, test_loss1, train_acc1, test_acc1 = train_Adam(params1, trainset1, testset1, batch_size, 0.1, seed=42)
 
     trainset2 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset2 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params2, train_loss2, test_loss2 = train_Adam(params2, trainset2, testset2, batch_size, 0.2, seed=42)
+    trained_params2, train_loss2, test_loss2, train_acc2, test_acc2 = train_Adam(params2, trainset2, testset2, batch_size, 0.2, seed=42)
 
     trainset3 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset3 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params3, train_loss3, test_loss3 = train_Adam(params3, trainset3, testset3, batch_size, 0.5, seed=42)
+    trained_params3, train_loss3, test_loss3, train_acc3, test_acc3 = train_Adam(params3, trainset3, testset3, batch_size, 0.5, seed=42)
 
     trainset4 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset4 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params4, train_loss4, test_loss4 = train_Adam(params4, trainset4, testset4, batch_size, 1.0, seed=42)
+    trained_params4, train_loss4, test_loss4, train_acc4, test_acc4 = train_Adam(params4, trainset4, testset4, batch_size, 1.0, seed=42)
 
     trainset5 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset5 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params5, train_loss5, test_loss5 = train_Adam(params5, trainset5, testset5, batch_size, 2.0, seed=42)
+    trained_params5, train_loss5, test_loss5, train_acc5, test_acc5 = train_Adam(params5, trainset5, testset5, batch_size, 2.0, seed=42)
 
     train_arr1 = np.array(train_loss1)
     train_arr2 = np.array(train_loss2)
@@ -117,6 +121,20 @@ if __name__ == '__main__':
     test_arr4 = np.array(test_loss4)
     test_arr5 = np.array(test_loss5)
 
-    np.savez('loss.npz', train_arr1, train_arr2, train_arr3, train_arr4, train_arr5,
-             test_arr1, test_arr2, test_arr3, test_arr4, test_arr5)
+    train_acc1 = np.array(train_acc1)
+    train_acc2 = np.array(train_acc2)
+    train_acc3 = np.array(train_acc3)
+    train_acc4 = np.array(train_acc4)
+    train_acc5 = np.array(train_acc5)
+
+    test_acc1 = np.array(test_acc1)
+    test_acc2 = np.array(test_acc2)
+    test_acc3 = np.array(test_acc3)
+    test_acc4 = np.array(test_acc4)
+    test_acc5 = np.array(test_acc5)
+
+    np.savez('loss_adam_64.npz', train_arr1, train_arr2, train_arr3, train_arr4, train_arr5,
+             test_arr1, test_arr2, test_arr3, test_arr4, test_arr5,
+             train_acc1, train_acc2, train_acc3, train_acc4, train_acc5,
+             test_acc1, test_acc2, test_acc3, test_acc4, test_acc5)
 
