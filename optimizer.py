@@ -30,23 +30,24 @@ def get_adam(step, grads, state):
     # Jitted function to update the first moment estimate (m) for each parameter with bias correction
     @jax.jit
     def update_m(m, grad):
-        return (state['beta1'] * m + (1.0 - state['beta1']) * grad) / (1 - state['beta1'] ** (step + 1))
+        return (state['beta1'] * m + (1.0 - state['beta1']) * grad)
 
     # Jitted function to update the second moment estimate (v) for each parameter with bias correction
     @jax.jit
     def update_v(v, grad):
-        return (state['beta2'] * v + (1.0 - state['beta2']) * jnp.square(grad)) / (1 - state['beta2'] ** (step + 1))
-
-    @jax.jit
+        return (state['beta2'] * v + (1.0 - state['beta2']) * jnp.square(grad))
+    
     def update_mv(m, v):
-        return m / (jnp.sqrt(v) + state['eps'])
+        m_hat = m / (1 - state['beta1'] ** (step + 1))
+        v_hat = v / (1 - state['beta2'] ** (step + 1))
+        return m_hat / (jnp.sqrt(v_hat) + state['eps'])
 
     state['m'] = jax.tree_map(update_m, state['m'], grads)
     state['v'] = jax.tree_map(update_v, state['v'], grads)
 
     adams = jax.tree_map(update_mv, state['m'], state['v'])
 
-    return adams
+    return adams, state
 
 @custom_jit
 def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay):
@@ -177,7 +178,7 @@ def adam_update(params, step, grads, state):
     # Compute adam vector and update parameters
 
     lr_t = state['learning_rate']
-    adams = get_adam(step, grads, state)
+    adams, state = get_adam(step, grads, state)
 
     @jax.jit
     def update_params(param, damps):

@@ -42,7 +42,7 @@ def train_Adam(initial_params, train_ds, test_ds, batch_size, learning_rate, see
     state = adam_init(params, learning_rate=learning_rate)
 
     # Training loop
-    num_steps = 3000
+    num_steps = 500
     train_loss_list = []
     test_loss_list = []
     train_acc_list = []
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     model = get_model()
 
     # Model parameters for AdamK and Adam
-    batch_size = 64
+    batch_size = 1024
     # Define a transformation to apply to the images
     transform = transforms.Compose(
      [transforms.ToTensor(),
@@ -133,8 +133,7 @@ if __name__ == '__main__':
     test_acc4 = np.array(test_acc4)
     test_acc5 = np.array(test_acc5)
 
-    np.savez('loss_adam_64.npz', train_arr1, train_arr2, train_arr3, train_arr4, train_arr5,
+    np.savez('loss_adam_1024.npz', train_arr1, train_arr2, train_arr3, train_arr4, train_arr5,
              test_arr1, test_arr2, test_arr3, test_arr4, test_arr5,
              train_acc1, train_acc2, train_acc3, train_acc4, train_acc5,
              test_acc1, test_acc2, test_acc3, test_acc4, test_acc5)
-
