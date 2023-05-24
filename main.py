@@ -72,6 +72,75 @@ def train_Adam(initial_params, train_ds, test_ds, batch_size, learning_rate, see
         
     return params, train_loss_list, test_loss_list, train_acc_list, test_acc_list
 
+def train_AdamK(initial_params, train_ds, test_ds, batch_size, learning_rate, seed=None):
+    params = initial_params
+
+    trainloader, testloader = create_dataloader(train_ds, test_ds, batch_size, seed)
+
+    # Convert the PyTorch DataLoaders to NumPy iterators
+    train_ds_numpy = to_numpy_iterator(trainloader)
+    test_ds_numpy = to_numpy_iterator(testloader)
+    
+    # Training constant for AdamK
+    T1 = 5
+    omega1 = (8 / 10) ** T1
+    lambd = 0.1
+    weight_decay = 5e-4
+    
+    def model_fn(params, inputs):
+        return model.apply(params, inputs)
+    
+    # Create a function to compute gradients
+    fixed_loss = Partial(loss, model)
+    loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0, has_aux=True)
+
+    # Initialize optimizer state
+    state = adam_init(params, learning_rate=1.6)
+
+    # Training loop
+    num_steps = 500
+    train_loss_list = []
+    test_loss_list = []
+    train_acc_list = []
+    test_acc_list = []
+
+    start_time = time.time()
+    elapsed_time = 0
+    
+    for step in tqdm(range(num_steps)):
+        batch = next(train_ds_numpy)
+        test_batch = next(test_ds_numpy)
+
+        (loss_value, logits), gradients = loss_and_grads(params, batch)
+        params, state = optimize_AdamK(model_fn, params, step, batch, gradients, state, lambd, weight_decay)
+
+        accuracy = jnp.mean(jnp.argmax(logits, -1) == batch[1])
+        test_loss_value, test_logits = fixed_loss(params, test_batch)
+        print(test_logits)
+        test_accuracy = jnp.mean(jnp.argmax(test_logits, -1) == test_batch[1])
+        train_loss_list.append(loss_value)
+        test_loss_list.append(test_loss_value)
+        train_acc_list.append(accuracy)
+        test_acc_list.append(test_accuracy)
+
+        if step % T1 == 0:
+            next_loss, _ = fixed_loss(params, batch)
+            rho = -(next_loss - loss_value) / (0.5 * dot_product(gradients, state['damps']))
+            print(rho)
+            if rho > 3/4:
+                lambd = omega1 * lambd
+            if rho < 1/4:
+                lambd = lambd / omega1
+            if lambd < 1e-4:
+                lambd = 1e-4
+
+        elapsed_time = time.time() - start_time
+
+        print(f'''Step {step}, train loss: {loss_value:.3f}, test loss: {test_loss_value:.3f}, train accuracy: {accuracy:.3f}, 
+              test accuracy: {test_accuracy:.3f}, using lambda {lambd:.4f}, elapsed time: {elapsed_time:.2f}.''')
+
+    return params, train_loss_list, test_loss_list, train_acc_list, test_acc_list
+
 if __name__ == '__main__':
     model = get_model()
 

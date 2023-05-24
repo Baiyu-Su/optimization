@@ -63,77 +63,68 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
         return jnp.einsum('bi, bij, bj -> b', vector1, matrix, vector2)
 
     adam_F_adam = jnp.mean(vMv_product(jvp_adam, jvp_adam, fisher_kernel))
-    adam_F_damp = jnp.mean(vMv_product(jvp_adam, jvp_damp, fisher_kernel))
-    damp_F_damp = jnp.mean(vMv_product(jvp_damp, jvp_damp, fisher_kernel))
+    # adam_F_damp = jnp.mean(vMv_product(jvp_adam, jvp_damp, fisher_kernel))
+    # damp_F_damp = jnp.mean(vMv_product(jvp_damp, jvp_damp, fisher_kernel))
 
     mat11 = (adam_F_adam + (lambd + weight_decay) * dot_product(adams, adams)) / 100
-    mat12 = adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)
-    mat21 = (adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)) / 100
-    mat22 = damp_F_damp + (lambd + weight_decay) * dot_product(damps, damps)
+    # mat12 = adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)
+    # mat21 = (adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)) / 100
+    # mat22 = damp_F_damp + (lambd + weight_decay) * dot_product(damps, damps)
 
-    mat = jnp.array([[mat11, mat12], [mat21, mat22]])
+    # mat = jnp.array([[mat11, mat12], [mat21, mat22]])
 
-    # Add small positive value to the diagonal for better numerical stability
-    alpha = 1e-5
-    mat += jax.numpy.eye(2) * alpha
+    # # Add small positive value to the diagonal for better numerical stability
+    # alpha = 1e-5
+    # mat += jax.numpy.eye(2) * alpha
 
-    condition_number = jax.numpy.linalg.cond(mat)
+    # condition_number = jax.numpy.linalg.cond(mat)
 
-    # Function to handle the ill-conditioned or NaN condition_number case
-    def ill_conditioned_case(_):
-        return jax.numpy.array([[0.1], [0.01]])
+    # # Function to handle the ill-conditioned or NaN condition_number case
+    # def ill_conditioned_case(_):
+    #     return jax.numpy.array([[0.1], [0.01]])
 
-    # Function to handle the well-conditioned case
-    def well_conditioned_case(_):
-        vec1 = dot_product(grads, adams)
-        vec2 = dot_product(grads, damps)
-        vec = jax.numpy.array([[vec1], [vec2]])
-        optim = jax.numpy.linalg.solve(mat, vec)
+    # # Function to handle the well-conditioned case
+    # def well_conditioned_case(_):
+    #     vec1 = dot_product(grads, adams)
+    #     vec2 = dot_product(grads, damps)
+    #     vec = jax.numpy.array([[vec1], [vec2]])
+    #     optim = jax.numpy.linalg.solve(mat, vec)
 
-        # Function to handle the NaN values in optim vector case
-        def nan_values_case(_):
-            return jax.numpy.array([[0.1], [-0.01]])
+    #     # Function to handle the NaN values in optim vector case
+    #     def nan_values_case(_):
+    #         return jax.numpy.array([[0.1], [-0.01]])
 
-        # Function to handle the non-NaN values in optim vector case
-        def non_nan_values_case(_):
-            return optim
+    #     # Function to handle the non-NaN values in optim vector case
+    #     def non_nan_values_case(_):
+    #         return optim
 
-        # Use lax.cond to handle control flow with tracer values within well_conditioned_case
-        return lax.cond(
-            jax.numpy.isnan(optim).any(),
-            nan_values_case,
-            non_nan_values_case,
-            None  # This argument is not used by either branch, so we pass None
-        )
+    #     # Use lax.cond to handle control flow with tracer values within well_conditioned_case
+    #     return lax.cond(
+    #         jax.numpy.isnan(optim).any(),
+    #         nan_values_case,
+    #         non_nan_values_case,
+    #         None  # This argument is not used by either branch, so we pass None
+    #     )
 
-    # Use lax.cond to handle control flow with tracer values for condition_number
-    optim = lax.cond(
-        (condition_number > 1e8) | jax.numpy.isnan(condition_number),
-        ill_conditioned_case,
-        well_conditioned_case,
-        None  # This argument is not used by either branch, so we pass None
-    )
+    # # Use lax.cond to handle control flow with tracer values for condition_number
+    # optim = lax.cond(
+    #     (condition_number > 1e8) | jax.numpy.isnan(condition_number),
+    #     ill_conditioned_case,
+    #     well_conditioned_case,
+    #     None  # This argument is not used by either branch, so we pass None
+    # )
 
-    # Apply constraints to optim
-    optim = jnp.stack([jnp.clip(optim[0], -0.1, 0.7), jnp.clip(optim[1], -0.1, 0.7)])
+    # # Apply constraints to optim
+    # optim = jnp.array([jnp.clip(optim[0], -0.3, 1.0), jnp.clip(optim[1], -0.3, 1.0)])
+    optim = jnp.array([jnp.clip(dot_product(grads, adams)/mat11, -0.3, 1.0), 0.0])
 
     return optim
 
 @custom_jit
-def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
+def damp_update(model_fn, params, step, batch, grads, state, lambd, weight_decay):
 
-    initial_learning_rate = state['learning_rate']
-    final_learning_rate = 1.0
-    total_steps = 1500  # Set this to the number of total steps you want to take
-
-    # Calculate the current learning rate with linear decay
-    current_learning_rate = initial_learning_rate + (final_learning_rate - initial_learning_rate) * (state['t'] / total_steps)
-
-    state['t'] += 1
-    # Calculate the time-dependent learning rate
-    lr_t = current_learning_rate * jnp.sqrt(1.0 - jnp.power(state['beta2'], state['t'])) / (1.0 - jnp.power(state['beta1'], state['t']))
-
-    adams = get_adam(grads, state)
+    lr_t = state['learning_rate']
+    adams = get_adam(step, grads, state)
 
     @jax.jit
     def update_params(param, damps):
@@ -154,7 +145,7 @@ def damp_update(model_fn, params, batch, grads, state, lambd, weight_decay):
     damps_norm = jnp.sqrt(sum(jnp.sum(jnp.square(damp)) for damp in jax.tree_leaves(damps)))
 
     # Set the norm constraint limit
-    norm_constraint = 10
+    norm_constraint = 15
     
     @jax.jit
     def scale_damps(_):
@@ -190,8 +181,8 @@ def adam_update(params, step, grads, state):
     return params, state  
 
 @custom_jit
-def optimize_AdamK(model_fn, params, batch, grads, state, lambd, weight_decay):
-    return damp_update(model_fn, params, batch, grads, state, lambd, weight_decay)
+def optimize_AdamK(model_fn, params, step, batch, grads, state, lambd, weight_decay):
+    return damp_update(model_fn, params, step, batch, grads, state, lambd, weight_decay)
 
 @jax.jit
 def optimize_Adam(params, step, grads, state):
