@@ -14,7 +14,7 @@ def cross_entropy_loss(logits, labels):
 
 def loss(model, params, batch, weight_decay=1e-4):
     """loss function used for training."""
-    logits = model.apply(params, batch[0])
+    logits = model.apply(params, batch[0], mutable=['batch_stats'])[0]
     loss = cross_entropy_loss(logits, batch[1])
     weight_l2 = dot_product(params, params)
     weight_penalty = weight_decay * 0.5 * weight_l2

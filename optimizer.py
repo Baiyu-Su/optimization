@@ -66,7 +66,7 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     # adam_F_damp = jnp.mean(vMv_product(jvp_adam, jvp_damp, fisher_kernel))
     # damp_F_damp = jnp.mean(vMv_product(jvp_damp, jvp_damp, fisher_kernel))
 
-    mat11 = (adam_F_adam + (lambd + weight_decay) * dot_product(adams, adams)) / 100
+    mat11 = (adam_F_adam + (lambd + weight_decay) * dot_product(adams, adams))
     # mat12 = adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)
     # mat21 = (adam_F_damp + (lambd + weight_decay) * dot_product(adams, damps)) / 100
     # mat22 = damp_F_damp + (lambd + weight_decay) * dot_product(damps, damps)
@@ -116,19 +116,20 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
 
     # # Apply constraints to optim
     # optim = jnp.array([jnp.clip(optim[0], -0.3, 1.0), jnp.clip(optim[1], -0.3, 1.0)])
-    optim = jnp.array([jnp.clip(dot_product(grads, adams)/mat11, -0.3, 1.0), 0.0])
-
+    optim = jnp.array([dot_product(grads, adams)/mat11, 0.0])
+    
+    #call(lambda x: print(x), optim[0])
     return optim
 
 @custom_jit
 def damp_update(model_fn, params, step, batch, grads, state, lambd, weight_decay):
 
     lr_t = state['learning_rate']
-    adams = get_adam(step, grads, state)
+    adams, state = get_adam(step, grads, state)
 
     @jax.jit
     def update_params(param, damps):
-        return param - lr_t * damps
+        return param - damps
 
     damps = state['damps']
     # Compute optimum \alpha and \mu for damp update
@@ -137,15 +138,15 @@ def damp_update(model_fn, params, step, batch, grads, state, lambd, weight_decay
     # Jitted function using optim vector to compute damp update
     @jax.jit
     def get_damps(adams, damps):
-        return adams * optim[0] / 100 + damps * optim[1]
+        return lr_t * (adams * optim[0] + damps * optim[1])
 
     damps = jax.tree_map(get_damps, adams, damps)
 
     # Compute the norm of the 'damps' variable
     damps_norm = jnp.sqrt(sum(jnp.sum(jnp.square(damp)) for damp in jax.tree_leaves(damps)))
-
+    #call(lambda x: print(x), damps_norm)
     # Set the norm constraint limit
-    norm_constraint = 15
+    norm_constraint = 20
     
     @jax.jit
     def scale_damps(_):

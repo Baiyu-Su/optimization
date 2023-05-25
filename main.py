@@ -83,19 +83,19 @@ def train_AdamK(initial_params, train_ds, test_ds, batch_size, learning_rate, se
     
     # Training constant for AdamK
     T1 = 5
-    omega1 = (8 / 10) ** T1
+    omega1 = (9 / 10) ** T1
     lambd = 0.1
-    weight_decay = 5e-4
+    weight_decay = 1e-4
     
     def model_fn(params, inputs):
-        return model.apply(params, inputs)
+        return model.apply(params, inputs, mutable=['batch_stats'])[0]
     
     # Create a function to compute gradients
     fixed_loss = Partial(loss, model)
     loss_and_grads = jax.value_and_grad(fixed_loss, argnums=0, has_aux=True)
 
     # Initialize optimizer state
-    state = adam_init(params, learning_rate=1.6)
+    state = adam_init(params, learning_rate=learning_rate)
 
     # Training loop
     num_steps = 500
@@ -116,7 +116,6 @@ def train_AdamK(initial_params, train_ds, test_ds, batch_size, learning_rate, se
 
         accuracy = jnp.mean(jnp.argmax(logits, -1) == batch[1])
         test_loss_value, test_logits = fixed_loss(params, test_batch)
-        print(test_logits)
         test_accuracy = jnp.mean(jnp.argmax(test_logits, -1) == test_batch[1])
         train_loss_list.append(loss_value)
         test_loss_list.append(test_loss_value)
@@ -131,8 +130,8 @@ def train_AdamK(initial_params, train_ds, test_ds, batch_size, learning_rate, se
                 lambd = omega1 * lambd
             if rho < 1/4:
                 lambd = lambd / omega1
-            if lambd < 1e-4:
-                lambd = 1e-4
+            if lambd < 2e-5:
+                lambd = 2e-5
 
         elapsed_time = time.time() - start_time
 
@@ -160,23 +159,23 @@ if __name__ == '__main__':
 
     trainset1 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset1 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params1, train_loss1, test_loss1, train_acc1, test_acc1 = train_Adam(params1, trainset1, testset1, batch_size, 0.1, seed=42)
+    trained_params1, train_loss1, test_loss1, train_acc1, test_acc1 = train_AdamK(params1, trainset1, testset1, batch_size, 0.1, seed=42)
 
     trainset2 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset2 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params2, train_loss2, test_loss2, train_acc2, test_acc2 = train_Adam(params2, trainset2, testset2, batch_size, 0.2, seed=42)
+    trained_params2, train_loss2, test_loss2, train_acc2, test_acc2 = train_AdamK(params2, trainset2, testset2, batch_size, 0.2, seed=42)
 
     trainset3 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset3 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params3, train_loss3, test_loss3, train_acc3, test_acc3 = train_Adam(params3, trainset3, testset3, batch_size, 0.5, seed=42)
+    trained_params3, train_loss3, test_loss3, train_acc3, test_acc3 = train_AdamK(params3, trainset3, testset3, batch_size, 0.5, seed=42)
 
     trainset4 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset4 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params4, train_loss4, test_loss4, train_acc4, test_acc4 = train_Adam(params4, trainset4, testset4, batch_size, 1.0, seed=42)
+    trained_params4, train_loss4, test_loss4, train_acc4, test_acc4 = train_AdamK(params4, trainset4, testset4, batch_size, 1.0, seed=42)
 
     trainset5 = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
     testset5 = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
-    trained_params5, train_loss5, test_loss5, train_acc5, test_acc5 = train_Adam(params5, trainset5, testset5, batch_size, 2.0, seed=42)
+    trained_params5, train_loss5, test_loss5, train_acc5, test_acc5 = train_AdamK(params5, trainset5, testset5, batch_size, 2.0, seed=42)
 
     train_arr1 = np.array(train_loss1)
     train_arr2 = np.array(train_loss2)
@@ -202,7 +201,7 @@ if __name__ == '__main__':
     test_acc4 = np.array(test_acc4)
     test_acc5 = np.array(test_acc5)
 
-    np.savez('loss_adam_1024.npz', train_arr1, train_arr2, train_arr3, train_arr4, train_arr5,
+    np.savez('loss_kfac_1024.npz', train_arr1, train_arr2, train_arr3, train_arr4, train_arr5,
              test_arr1, test_arr2, test_arr3, test_arr4, test_arr5,
              train_acc1, train_acc2, train_acc3, train_acc4, train_acc5,
              test_acc1, test_acc2, test_acc3, test_acc4, test_acc5)
