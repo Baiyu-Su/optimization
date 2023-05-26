@@ -118,7 +118,7 @@ def get_optim(model_fn, params, batch, grads, adams, damps, lambd, weight_decay)
     # optim = jnp.array([jnp.clip(optim[0], -0.3, 1.0), jnp.clip(optim[1], -0.3, 1.0)])
     optim = jnp.array([dot_product(grads, adams)/mat11, 0.0])
     
-    #call(lambda x: print(x), optim[0])
+    call(lambda x: print(x), optim[0])
     return optim
 
 @custom_jit
@@ -144,9 +144,9 @@ def damp_update(model_fn, params, step, batch, grads, state, lambd, weight_decay
 
     # Compute the norm of the 'damps' variable
     damps_norm = jnp.sqrt(sum(jnp.sum(jnp.square(damp)) for damp in jax.tree_leaves(damps)))
-    #call(lambda x: print(x), damps_norm)
+    call(lambda x: print(x), damps_norm)
     # Set the norm constraint limit
-    norm_constraint = 20
+    norm_constraint = 15
     
     @jax.jit
     def scale_damps(_):
